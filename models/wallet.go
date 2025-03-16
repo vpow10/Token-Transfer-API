@@ -1,6 +1,8 @@
 package models
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
@@ -17,6 +19,13 @@ func (wallet *Wallet) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 func InitializeWallet(db *gorm.DB, address string, initialBalance int) error {
+	if address == "" {
+		return errors.New("address cannot be empty")
+	}
+	if initialBalance < 0 {
+		return errors.New("balance cannot be negative")
+	}
+
 	var wallet Wallet
 	result := db.Where("address = ?", address).First(&wallet)
 	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
