@@ -19,6 +19,9 @@ func (wallet *Wallet) BeforeCreate(tx *gorm.DB) (err error) {
 func InitializeWallet(db *gorm.DB, address string, initialBalance int) error {
 	var wallet Wallet
 	result := db.Where("address = ?", address).First(&wallet)
+	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
+		return result.Error
+	}
 	if result.Error == gorm.ErrRecordNotFound {
 		wallet = Wallet{
 			Address: address,
@@ -26,5 +29,5 @@ func InitializeWallet(db *gorm.DB, address string, initialBalance int) error {
 		}
 		return db.Create(&wallet).Error
 	}
-	return result.Error
+	return nil
 }
