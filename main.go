@@ -7,11 +7,10 @@ import (
 )
 
 func main() {
-	db, err := db.Connect()
+	_, err := db.Connect()
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
+		log.Fatalf("Failed to connect to the database: %v", &err)
 	}
-	defer db.Close()
 
-	fmt.Println("Successfully connected to the database!")
+	fmt.Println("Successfully connected to the database.")
 }

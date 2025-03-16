@@ -1,18 +1,22 @@
 package db
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 
+	"token-transfer-api/models"
+
 	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
-func Connect() (*sql.DB, error) {
+var DB *gorm.DB
+
+func Connect() (*gorm.DB, error) {
 	err := godotenv.Load()
 	if err != nil {
-		return nil, fmt.Errorf("Error loading .env file: %w", err)
+		return nil, fmt.Errorf("error loading .env file: %w", err)
 	}
 
 	user := os.Getenv("POSTGRES_USER")
@@ -21,23 +25,18 @@ func Connect() (*sql.DB, error) {
 	host := os.Getenv("POSTGRES_HOST")
 	port := os.Getenv("POSTGRES_PORT")
 
-	connStr := fmt.Sprintf("user=%s dbname=%s password=%s sslmode=disable", user, dbname, password)
-	if host != "" {
-		connStr += fmt.Sprintf(" host=%s", host)
-	}
-	if port != "" {
-		connStr += fmt.Sprintf(" port=%s", port)
-	}
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, user, password, dbname, port)
 
-	db, err := sql.Open("postgres", connStr)
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return nil, fmt.Errorf("Error opening database connection: %w", err)
+		return nil, fmt.Errorf("error connecting to the database: %w", err)
 	}
 
-	err = db.Ping()
+	err = DB.AutoMigrate(&models.Wallet{})
 	if err != nil {
-		return nil, fmt.Errorf("Error pinging database: %w", err)
+		return nil, fmt.Errorf("error auto-migrating Wallet model: %w", err)
 	}
 
-	return db, nil
+	fmt.Println("Successfully connected to the database and auto-migrated models.")
+	return DB, nil
 }
