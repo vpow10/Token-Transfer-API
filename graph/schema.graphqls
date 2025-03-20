@@ -1,5 +1,9 @@
 type Mutation {
-    transfer(fromAddress: String!, toAddress: String!, amount: Int!): Wallet
+    transfer(fromAddress: String!, toAddress: String!, amount: Int!): Wallet!
+}
+
+type Query {
+    wallet(address: String!): Wallet!
 }
 
 type Wallet {

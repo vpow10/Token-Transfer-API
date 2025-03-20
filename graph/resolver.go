@@ -5,20 +5,23 @@ package graph
 import (
 	"context"
 	"errors"
-	"token-transfer-api/db"
 	"token-transfer-api/graph/generated"
 	"token-transfer-api/models"
+
+	"gorm.io/gorm"
 )
 
-type Resolver struct{}
+type Resolver struct {
+	DB *gorm.DB
+}
 
 // Transfer is the resolver for the transfer field.
-func (r *mutationResolver) Transfer(ctx context.Context, fromAddress string, toAddress string, amount int) (*models.Wallet, error) {
+func (r *Resolver) Transfer(ctx context.Context, fromAddress string, toAddress string, amount int) (*models.Wallet, error) {
 	if amount <= 0 {
 		return nil, errors.New("amount must be positive")
 	}
 
-	tx := db.DB.Begin()
+	tx := r.DB.Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
 	}
