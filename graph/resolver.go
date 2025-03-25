@@ -9,6 +9,7 @@ import (
 	"token-transfer-api/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Resolver struct {
@@ -21,16 +22,71 @@ func (r *Resolver) Transfer(ctx context.Context, fromAddress string, toAddress s
 		return nil, errors.New("amount must be positive")
 	}
 
-	tx := r.DB.Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+	// Determine lock order (always lock the "lower" address first)
+	firstToLock, secondToLock := fromAddress, toAddress
+	if fromAddress > toAddress {
+		firstToLock, secondToLock = toAddress, fromAddress
 	}
 
-	var fromWallet models.Wallet
-	err := tx.Where("address =?", fromAddress).First(&fromWallet).Error
-	if err != nil {
+	db := r.DB.WithContext(ctx)
+
+	tx := db.Session(&gorm.Session{
+		SkipDefaultTransaction: true,
+		PrepareStmt:            true,
+	}).Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Lock first wallet
+	var firstWallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("address = ?", firstToLock).
+		First(&firstWallet).Error; err != nil {
 		tx.Rollback()
-		return nil, errors.New("sender wallet not found")
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if firstToLock == fromAddress {
+				return nil, errors.New("sender wallet not found")
+			}
+			return nil, errors.New("receiver wallet not found")
+		}
+		return nil, err
+	}
+
+	// Lock second wallet
+	var secondWallet models.Wallet
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("address = ?", secondToLock).
+		First(&secondWallet).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			if secondToLock == toAddress {
+				// Create new wallet if it's the receiver
+				secondWallet = models.Wallet{
+					Address: secondToLock,
+					Balance: 0,
+				}
+				if err := tx.Create(&secondWallet).Error; err != nil {
+					tx.Rollback()
+					return nil, err
+				}
+			} else {
+				tx.Rollback()
+				return nil, errors.New("sender wallet not found")
+			}
+		} else {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// Determine which wallet is sender and which is receiver
+	var fromWallet, toWallet *models.Wallet
+	if firstToLock == fromAddress {
+		fromWallet, toWallet = &firstWallet, &secondWallet
+	} else {
+		fromWallet, toWallet = &secondWallet, &firstWallet
 	}
 
 	if fromWallet.Balance < amount {
@@ -38,34 +94,23 @@ func (r *Resolver) Transfer(ctx context.Context, fromAddress string, toAddress s
 		return nil, errors.New("insufficient balance")
 	}
 
-	var toWallet models.Wallet
-	err = tx.Where("address =?", toAddress).First(&toWallet).Error
-	if err != nil {
-		return nil, errors.New("receiver wallet not found")
-	}
-
 	fromWallet.Balance -= amount
 	toWallet.Balance += amount
 
-	err = tx.Save(&fromWallet).Error
-	if err != nil {
+	if err := tx.Save(fromWallet).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+	if err := tx.Save(toWallet).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
 
-	err = tx.Save(&toWallet).Error
-	if err != nil {
-		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
 
-	err = tx.Commit().Error
-	if err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	return &fromWallet, nil
+	return fromWallet, nil
 }
 
 // ID is the resolver for the id field.

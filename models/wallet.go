@@ -11,6 +11,7 @@ type Wallet struct {
 	ID      uuid.UUID `gorm:"type:uuid;primary_key;"`
 	Address string    `gorm:"unique;not null"`
 	Balance int       `gorm:"not null"`
+	Version int       `gorm:"default:1"`
 }
 
 func (wallet *Wallet) BeforeCreate(tx *gorm.DB) (err error) {
