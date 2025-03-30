@@ -25,6 +25,16 @@ func main() {
 		log.Fatalf("Failed to initialize the default wallet: %v", err)
 	}
 
+	// Uncomment the following lines to initialize an additional wallet
+	// to test the transfer functionality manually
+
+	// additionalAddress := "0x1001"
+	// additionalBalance := 0
+	// err = models.InitializeWallet(database, additionalAddress, additionalBalance)
+	// if err != nil {
+	// 	log.Fatalf("Failed to initialize the additional wallet: %v", err)
+	// }
+
 	resolver := &graph.Resolver{DB: database}
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
