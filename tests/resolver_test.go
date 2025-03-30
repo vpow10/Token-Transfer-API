@@ -59,99 +59,91 @@ func (suite *GraphQLTestSuite) SetupTest() {
 
 // using that instead of TearDownSuite() because incorrect receiver address test is causing runtime error otherwise
 func (suite *GraphQLTestSuite) TearDownTest() {
-	suite.db.Exec("DELETE FROM wallets")
+	suite.db.Exec("DELETE FROM wallets WHERE address LIKE '0xTEST%' OR address LIKE '0x1000'")
 }
 
 func (suite *GraphQLTestSuite) TestTransferSuccessful() {
-	suite.Run("Successful transfer", func() {
-		fromAddress := "0x1000"
-		toAddress := "0x1001"
-		amount := 100
+	fromAddress := "0x1000"
+	toAddress := "0xTEST1001"
+	amount := 100
 
-		err := models.InitializeWallet(suite.db, toAddress, 0)
-		assert.NoError(suite.T(), err, "Failed to initialize receiver wallet")
+	err := models.InitializeWallet(suite.db, toAddress, 0)
+	assert.NoError(suite.T(), err, "Failed to initialize receiver wallet")
 
-		var senderWallet models.Wallet
-		err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
-		assert.NoError(suite.T(), err, "Failed to find sender wallet")
-		initialSenderBalance := senderWallet.Balance
+	var senderWallet models.Wallet
+	err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
+	assert.NoError(suite.T(), err, "Failed to find sender wallet")
+	initialSenderBalance := senderWallet.Balance
 
-		wallet, err := suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
-		assert.NoError(suite.T(), err, "Failed to transfer funds")
-		assert.Equal(suite.T(), initialSenderBalance-amount, wallet.Balance, "Sender balance incorrect")
+	wallet, err := suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
+	assert.NoError(suite.T(), err, "Failed to transfer funds")
+	assert.Equal(suite.T(), initialSenderBalance-amount, wallet.Balance, "Sender balance incorrect")
 
-		var receiverWallet models.Wallet
-		err = suite.db.Where("address =?", toAddress).First(&receiverWallet).Error
-		assert.NoError(suite.T(), err, "Failed to find receiver wallet")
-		assert.Equal(suite.T(), amount, receiverWallet.Balance, "Receiver balance incorrect")
-	})
+	var receiverWallet models.Wallet
+	err = suite.db.Where("address =?", toAddress).First(&receiverWallet).Error
+	assert.NoError(suite.T(), err, "Failed to find receiver wallet")
+	assert.Equal(suite.T(), amount, receiverWallet.Balance, "Receiver balance incorrect")
 }
 
 func (suite *GraphQLTestSuite) TestTransferInsufficientBalance() {
-	suite.Run("Insufficient balance", func() {
-		fromAddress := "0x1000"
-		toAddress := "0x1002"
-		amount := 2000000
+	fromAddress := "0x1000"
+	toAddress := "0xTEST1002"
+	amount := 2000000
 
-		err := models.InitializeWallet(suite.db, toAddress, 0)
-		assert.NoError(suite.T(), err, "Failed to initialize receiver wallet")
+	err := models.InitializeWallet(suite.db, toAddress, 0)
+	assert.NoError(suite.T(), err, "Failed to initialize receiver wallet")
 
-		var senderWallet models.Wallet
-		err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
-		assert.NoError(suite.T(), err, "Failed to find sender wallet")
-		initialSenderBalance := senderWallet.Balance
+	var senderWallet models.Wallet
+	err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
+	assert.NoError(suite.T(), err, "Failed to find sender wallet")
+	initialSenderBalance := senderWallet.Balance
 
-		_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
-		assert.Error(suite.T(), err, "Expected insufficient balance error")
-		err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
-		assert.NoError(suite.T(), err, "Failed to find sender wallet")
-		assert.Equal(suite.T(), initialSenderBalance, senderWallet.Balance, "Sender balance is incorrect")
+	_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
+	assert.Error(suite.T(), err, "Expected insufficient balance error")
+	err = suite.db.Where("address =?", fromAddress).First(&senderWallet).Error
+	assert.NoError(suite.T(), err, "Failed to find sender wallet")
+	assert.Equal(suite.T(), initialSenderBalance, senderWallet.Balance, "Sender balance is incorrect")
 
-		var receiverWallet models.Wallet
-		err = suite.db.Where("address =?", toAddress).First(&receiverWallet).Error
-		assert.NoError(suite.T(), err, "Failed to find receiver wallet")
-		assert.Equal(suite.T(), 0, receiverWallet.Balance, "Receiver balance incorrect")
-	})
+	var receiverWallet models.Wallet
+	err = suite.db.Where("address =?", toAddress).First(&receiverWallet).Error
+	assert.NoError(suite.T(), err, "Failed to find receiver wallet")
+	assert.Equal(suite.T(), 0, receiverWallet.Balance, "Receiver balance incorrect")
 }
 
 func (suite *GraphQLTestSuite) TestTransferInvalidAddres1() {
-	suite.Run("Invalid sender address", func() {
-		fromAddress := "0x0009"
-		toAddress := "0x1000"
-		amount := 1
+	fromAddress := "0xTEST1009"
+	toAddress := "0x1000"
+	amount := 1
 
-		err := models.InitializeWallet(suite.db, toAddress, 0)
-		assert.NoError(suite.T(), err, "Failed to initialize sender wallet")
+	err := models.InitializeWallet(suite.db, toAddress, 0)
+	assert.NoError(suite.T(), err, "Failed to initialize sender wallet")
 
-		_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
-		assert.Error(suite.T(), err, "Expected sender wallet not found error")
-		assert.Equal(suite.T(), "sender wallet not found", err.Error(), "Incorrect error message")
+	_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
+	assert.Error(suite.T(), err, "Expected sender wallet not found error")
+	assert.Equal(suite.T(), "sender wallet not found", err.Error(), "Incorrect error message")
 
-		var wallet models.Wallet
-		err = suite.db.Where("address = ?", toAddress).First(&wallet).Error
-		assert.NoError(suite.T(), err, "Failed to find receiver wallet")
-		assert.Equal(suite.T(), 10000, wallet.Balance, "Receiver balance should not change")
-	})
+	var wallet models.Wallet
+	err = suite.db.Where("address = ?", toAddress).First(&wallet).Error
+	assert.NoError(suite.T(), err, "Failed to find receiver wallet")
+	assert.Equal(suite.T(), 10000, wallet.Balance, "Receiver balance should not change")
 }
 
 func (suite *GraphQLTestSuite) TestTransferInvalidAddres2() {
-	suite.Run("Invalid receiver address", func() {
-		fromAddress := "0x1000"
-		toAddress := "0x0009"
-		amount := 1
+	fromAddress := "0x1000"
+	toAddress := "0xTEST1009"
+	amount := 1
 
-		err := models.InitializeWallet(suite.db, fromAddress, 1000)
-		assert.NoError(suite.T(), err, "Failed to initialize sender wallet")
+	err := models.InitializeWallet(suite.db, fromAddress, 1000)
+	assert.NoError(suite.T(), err, "Failed to initialize sender wallet")
 
-		_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
-		assert.Error(suite.T(), err, "Expected receiver wallet not found error")
-		assert.Equal(suite.T(), "receiver wallet not found", err.Error(), "Incorrect error message")
+	_, err = suite.resolver.Transfer(context.Background(), fromAddress, toAddress, amount)
+	assert.Error(suite.T(), err, "Expected receiver wallet not found error")
+	assert.Equal(suite.T(), "receiver wallet not found", err.Error(), "Incorrect error message")
 
-		var wallet models.Wallet
-		err = suite.db.Where("address = ?", fromAddress).First(&wallet).Error
-		assert.NoError(suite.T(), err, "Failed to find sender wallet")
-		assert.Equal(suite.T(), 10000, wallet.Balance, "Sender balance should not change")
-	})
+	var wallet models.Wallet
+	err = suite.db.Where("address = ?", fromAddress).First(&wallet).Error
+	assert.NoError(suite.T(), err, "Failed to find sender wallet")
+	assert.Equal(suite.T(), 10000, wallet.Balance, "Sender balance should not change")
 }
 
 func TestGraphQLSuite(t *testing.T) {
