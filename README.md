@@ -160,4 +160,7 @@ mutation TransferTokens {
 
 - **Persistence**: Data persists across restarts when using Docker volumes
 
-- **Testing**: See tests/ directory for comprehensive test cases
+- **Testing**: See tests/ directory for comprehensive test cases. To run them:
+    ```bash
+    go test ./tests
+    ```
