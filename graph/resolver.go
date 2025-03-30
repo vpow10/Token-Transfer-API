@@ -1,7 +1,5 @@
 package graph
 
-// THIS CODE WILL BE UPDATED WITH SCHEMA CHANGES. PREVIOUS IMPLEMENTATION FOR SCHEMA CHANGES WILL BE KEPT IN THE COMMENT SECTION. IMPLEMENTATION FOR UNCHANGED SCHEMA WILL BE KEPT.
-
 import (
 	"context"
 	"errors"
@@ -20,6 +18,10 @@ type Resolver struct {
 func (r *Resolver) Transfer(ctx context.Context, fromAddress string, toAddress string, amount int) (*models.Wallet, error) {
 	if amount <= 0 {
 		return nil, errors.New("amount must be positive")
+	}
+
+	if fromAddress == toAddress {
+		return nil, errors.New("cannot transfer to self")
 	}
 
 	// Determine lock order (always lock the "lower" address first)
@@ -60,25 +62,14 @@ func (r *Resolver) Transfer(ctx context.Context, fromAddress string, toAddress s
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("address = ?", secondToLock).
 		First(&secondWallet).Error; err != nil {
+		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if secondToLock == toAddress {
-				// Create new wallet if it's the receiver
-				secondWallet = models.Wallet{
-					Address: secondToLock,
-					Balance: 0,
-				}
-				if err := tx.Create(&secondWallet).Error; err != nil {
-					tx.Rollback()
-					return nil, err
-				}
-			} else {
-				tx.Rollback()
+			if secondToLock == fromAddress {
 				return nil, errors.New("sender wallet not found")
 			}
-		} else {
-			tx.Rollback()
-			return nil, err
+			return nil, errors.New("receiver wallet not found")
 		}
+		return nil, err
 	}
 
 	// Determine which wallet is sender and which is receiver
