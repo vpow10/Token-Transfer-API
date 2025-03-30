@@ -9,6 +9,7 @@ import (
 	"token-transfer-api/models"
 
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
 )
 
@@ -37,7 +38,10 @@ func main() {
 
 	resolver := &graph.Resolver{DB: database}
 
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: resolver}))
+	execSchema := generated.NewExecutableSchema(generated.Config{Resolvers: resolver})
+
+	srv := handler.New(execSchema)
+	srv.AddTransport(transport.POST{})
 
 	http.Handle("/", playground.Handler("GraphQL Playground", "/query"))
 	http.Handle("/query", srv)
